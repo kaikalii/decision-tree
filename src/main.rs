@@ -63,6 +63,7 @@ flags:
                         be read as the outcome, rather than the last
     --verbose           When used with -b | --build, prints the
                         indices of the attributes of each node
+    --nosave            Prevents the tree from saving to a file
     -h | --help         Prints this message
                 "
                 );
@@ -115,13 +116,20 @@ flags:
 
     // Load a subset of the data
     let mut training_data: Vec<(Vec<String>, String)> = Vec::new();
-    for _ in 0..count {
-        training_data.push(data[rng.gen_range(0, data.len())].clone());
+    let mut used_entries = HashSet::new();
+    while used_entries.len() < count {
+        let random_entry = rng.gen_range(0, data.len());
+        if !used_entries.contains(&random_entry) {
+            training_data.push(data[random_entry].clone());
+            used_entries.insert(random_entry);
+        }
     }
     println!("training data size: {}", training_data.len());
     let mut test_data: Vec<(Vec<String>, String)> = Vec::new();
-    for _ in 0..(data.len() - count) {
-        test_data.push(data[rng.gen_range(0, data.len())].clone());
+    for (i, entry) in data.iter().enumerate() {
+        if !used_entries.contains(&i) {
+            test_data.push(entry.clone());
+        }
     }
     println!("test data size: {}", test_data.len());
 
@@ -167,23 +175,23 @@ flags:
 
         // Test the training data
         let (mut successes, mut failures) = (0, 0);
-        for (i, entry) in training_data.iter().enumerate() {
-            if i % (training_data.len() / 30) == 0 {
-                print!(".");
-            }
+        for entry in &training_data {
             if root.as_mut().unwrap().test(&entry.0, &entry.1) {
                 successes += 1;
             } else {
                 failures += 1;
             }
         }
-        println!();
+        println!("..............................");
+
+        // Report results
         println!(
             "training data:\n    {} successes, {} failures\n    {}% accuracy",
             successes,
             failures,
             (successes as f32) * 100.0 / (successes + failures) as f32
         );
+        println!("..............................");
     }
     // Build the tree from the tree file if it was not built
     if root.is_none() {
@@ -195,14 +203,9 @@ flags:
     }
     // Testing a tree
     if test {
-        println!("Testing...");
-
         // Test the test data
         let (mut successes, mut failures) = (0, 0);
-        for (i, entry) in test_data.iter().enumerate() {
-            if i % (test_data.len() / 30) == 0 {
-                print!(".");
-            }
+        for entry in &test_data {
             if root.as_mut().unwrap().test(&entry.0, &entry.1) {
                 successes += 1;
             } else {
@@ -211,18 +214,16 @@ flags:
         }
 
         // Report results
-        println!();
         println!(
             "test_data:\n    {} successes, {} failures\n    {}% accuracy",
             successes,
             failures,
             (successes as f32) * 100.0 / (successes + failures) as f32
         );
+        println!("..............................");
     }
     // Evaluate new data
     if eval {
-        println!("Evaluating...");
-
         // Load the eval data
         let mut eval_data_bytes = Vec::new();
         File::open(txt_file)
@@ -242,8 +243,10 @@ flags:
             .collect();
 
         // Evaluate the data
+        println!("Evaluation:");
         for entry in eval_data {
             println!("{:?}: {}", entry, root.as_mut().unwrap().eval(&entry));
         }
+        println!("..............................");
     }
 }
