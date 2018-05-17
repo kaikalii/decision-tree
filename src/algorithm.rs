@@ -50,7 +50,7 @@ pub fn id3(
         outcome_counts.into_iter().max_by_key(|p| p.1).unwrap().0
     };
     // Check if the node is a leaf node
-    if node.used_attrs.len() == variants.len() {
+    if node.used_attrs.len() == variants.len() || entropy(data, outcomes) == 0.0 {
         node.outcome = Some(data.first().expect("outcome data is empty").1.clone());
         return;
     }
@@ -89,7 +89,7 @@ pub fn id3(
                 .cloned()
                 .collect();
             if subset.is_empty() {
-                node.outcome = Some(data.first().expect("data is empty").1.clone());
+                new_node.outcome = Some(data.first().expect("data is empty").1.clone());
             } else {
                 id3(
                     &mut new_node,
