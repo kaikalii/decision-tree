@@ -28,6 +28,7 @@ fn main() {
     let mut ratio = 0.2;
     let mut first = false;
     let mut verbose = false;
+    let mut nosave = false;
     while let Some(arg) = args.next() {
         match arg.as_ref() {
             "-b" | "--build" => build = true,
@@ -45,6 +46,7 @@ fn main() {
             }
             "-f" | "--first" => first = true,
             "--verbose" => verbose = true,
+            "--nosave" => nosave = true,
             "-h" | "--help" => {
                 println!(
                     "
@@ -135,16 +137,18 @@ flags:
     println!("variants: {:?}", variants);
     println!("outcomes: {:?}", outcomes);
 
+    let mut root = None;
+
     // Building a tree
     if build {
         println!("Building...");
 
         // Create the root node
-        let mut root = Node::default();
+        root = Some(Node::default());
 
         // Run the algorithm
         id3(
-            &mut root,
+            root.as_mut().unwrap(),
             &training_data,
             &variants,
             &outcomes,
@@ -155,9 +159,11 @@ flags:
         println!("Tree construction complete");
 
         // Save the tree
-        let out_file = File::create(json_file.clone()).expect("Unable to create output file");
-        serde_json::to_writer_pretty(out_file, &root).expect("Unable to serialize tree");
-        println!("Tree saved to file");
+        if !nosave {
+            let out_file = File::create(json_file.clone()).expect("Unable to create output file");
+            serde_json::to_writer_pretty(out_file, &root).expect("Unable to serialize tree");
+            println!("Tree saved to file");
+        }
 
         // Test the training data
         let (mut successes, mut failures) = (0, 0);
@@ -165,7 +171,7 @@ flags:
             if i % (training_data.len() / 30) == 0 {
                 print!(".");
             }
-            if root.test(&entry.0, &entry.1) {
+            if root.as_mut().unwrap().test(&entry.0, &entry.1) {
                 successes += 1;
             } else {
                 failures += 1;
@@ -179,14 +185,17 @@ flags:
             (successes as f32) * 100.0 / (successes + failures) as f32
         );
     }
+    // Build the tree from the tree file if it was not built
+    if root.is_none() {
+        root = Some(
+            serde_json::from_reader(
+                File::open(json_file.clone()).expect("unable to open tree file"),
+            ).expect("Unable to deserialize tree file"),
+        );
+    }
     // Testing a tree
     if test {
         println!("Testing...");
-
-        // Build the tree from the tree file
-        let root: Node = serde_json::from_reader(
-            File::open(json_file.clone()).expect("unable to open tree file"),
-        ).expect("Unable to deserialize tree file");
 
         // Test the test data
         let (mut successes, mut failures) = (0, 0);
@@ -194,7 +203,7 @@ flags:
             if i % (test_data.len() / 30) == 0 {
                 print!(".");
             }
-            if root.test(&entry.0, &entry.1) {
+            if root.as_mut().unwrap().test(&entry.0, &entry.1) {
                 successes += 1;
             } else {
                 failures += 1;
@@ -213,11 +222,6 @@ flags:
     // Evaluate new data
     if eval {
         println!("Evaluating...");
-
-        // Build the tree from the tree file
-        let root: Node = serde_json::from_reader(
-            File::open(json_file).expect("unable to open tree file"),
-        ).expect("Unable to deserialize tree file");
 
         // Load the eval data
         let mut eval_data_bytes = Vec::new();
@@ -239,7 +243,7 @@ flags:
 
         // Evaluate the data
         for entry in eval_data {
-            println!("{:?}: {}", entry, root.eval(&entry));
+            println!("{:?}: {}", entry, root.as_mut().unwrap().eval(&entry));
         }
     }
 }
