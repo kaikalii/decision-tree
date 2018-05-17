@@ -1,0 +1,3 @@
+high,low,4,4,med,high
+
+low,med,4,more,med,med
